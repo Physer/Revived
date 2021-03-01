@@ -1,5 +1,6 @@
 ﻿using System;
-using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -9,9 +10,10 @@ namespace Revived.Server
 {
     public class Program
     {
-        private static readonly bool _isAlive = true;
         private static TcpListener _listener;
-        private static ConcurrentBag<TcpClient> _clients = new ConcurrentBag<TcpClient>();
+        private static ObservableCollection<TcpClient> _clients = new ObservableCollection<TcpClient>();
+
+        private static readonly bool _isAlive = true;
 
         private const int _portNumber = 7529;
         public static async Task Main(string[] args)
@@ -21,14 +23,16 @@ namespace Revived.Server
             WriteLine($"Listening on port {_portNumber}");
             while (_isAlive)
             {
-                ListenForShutdown();
+                //ListenForShutdown();
                 await ListenForConnections();
-
             }
         }
 
         private static async Task ListenForConnections()
         {
+            if (!_listener.Pending())
+                return;
+
             var client = await _listener.AcceptTcpClientAsync();
             if (!(client is null))
             {
@@ -41,6 +45,16 @@ namespace Revived.Server
         {
             _listener = new TcpListener(IPAddress.Any, _portNumber);
             _listener.Start();
+
+            _clients.CollectionChanged += OnClientUpdate;
+        }
+
+        private static void OnClientUpdate(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            if(e.Action == NotifyCollectionChangedAction.Remove)
+            {
+                WriteLine("Connection terminated");
+            }
         }
 
         private static void ListenForShutdown()
